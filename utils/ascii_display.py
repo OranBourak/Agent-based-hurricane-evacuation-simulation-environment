@@ -10,7 +10,9 @@ def render(time:int,Q:int,U:int,P:int,
     print(f"Time={time} | Q={Q} U={U} P={P}")
     by_v: Dict[int, List[str]] = {} # vertex_id -> list of agent labels
     for a in agents:
-        by_v.setdefault(a.current_vertex, []).append(a.label)
+    # Add "K" if equipped
+        display_label = a.label + ("K" if a.equipped else "")
+        by_v.setdefault(a.current_vertex, []).append(display_label)
     print("\nVertices:")
     parts=[]
     for vid in sorted(vertices):
