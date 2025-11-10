@@ -29,14 +29,16 @@ def interactive_add_agents(env:Environment):
     try:
         n=int(input("\nHow many agents? [default 3]: ") or "3")
     except: 
-        print("\nInvalid input. Using default value of 3.")
+        print("\n\033[91mInvalid input. Using default value of 3.\033[0m\n")
         n=3
     for i in range(n):
         t=(input(f"\nAgent #{i+1} type [greedy/thief/human] (default greedy): ") or "greedy").strip().lower()
-        if t not in ("greedy","thief","human"): t="greedy"
+        if t not in ("greedy","thief","human"):
+            print(f"\n\033[91mInvalid agent type. Using default 'greedy'.\033[0m\n")
+            t="greedy"
         v=int(input(f"\nStart vertex for agent #{i+1} (Range: [1 - {len(env.graph.vertices)}] ): ") or "1")
         if v<1 or v>len(env.graph.vertices):
-            print(f"\nInvalid vertex. Using default value of 1.\n")
+            print(f"\n\033[91mInvalid vertex. Using default value of 1.\033[0m\n")
             v=1
         if t=="greedy": env.add_agent(GreedyAgent(),v)
         elif t=="thief": env.add_agent(ThiefAgent(),v)
@@ -69,7 +71,7 @@ def main():
         else:
             print("Using constants from file.")
     except Exception:
-        print("Invalid input, using defaults from file.")
+        print("\033[91mInvalid input, using defaults from file.\033[0m")
 
     # --- Create the environment using either updated or default constants ---
     env = Environment(graph, Q=Q, U=U, P=P)
