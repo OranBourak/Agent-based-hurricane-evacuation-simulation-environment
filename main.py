@@ -53,8 +53,24 @@ def main():
         build_demo_file(args.file)
         print(f"Wrote demo to {args.file}")
 
-    graph,Q,U,P=Parser.parse(args.file)
-    env=Environment(graph,Q,U,P)
+    # --- Parse constants from file ---
+    graph, Q, U, P = Parser.parse(args.file)
+
+    # --- Ask the user if they want to override the constants ---
+    print("\nGlobal constants from file:")
+    print(f"Q={Q} (equip time), U={U} (unequip time), P={P} (speed penalty)\n")
+
+    try:
+        use_custom = input("Would you like to change these values? [y/N]: ").strip().lower()
+        if use_custom == "y":
+            Q = int(input(f"Enter Q (equip time) [{Q}]: ") or Q)
+            U = int(input(f"Enter U (unequip time) [{U}]: ") or U)
+            P = int(input(f"Enter P (speed penalty) [{P}]: ") or P)
+    except Exception:
+        print("Invalid input, using defaults from file.")
+
+    # --- Create the environment using either updated or default constants ---
+    env = Environment(graph, Q=Q, U=U, P=P)
 
     if args.no_interactive:
         env.add_agent(GreedyAgent(),1)
