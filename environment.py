@@ -29,6 +29,10 @@ class Environment:
 
     # ---- main loop ----
     def run(self, max_steps: int = 1000, visualize: bool = True) -> None:
+        ''' Run the environment simulation for a maximum number of steps.'''
+        # Initial display
+        if visualize: self._display()
+
         for _ in range(max_steps):
             if self._all_rescued() or not self._any_agent_can_reach_people(): # termination conditions
                 if visualize: self._display()
