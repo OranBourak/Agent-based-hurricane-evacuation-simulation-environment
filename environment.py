@@ -41,6 +41,7 @@ class Environment:
             for rec in self.agents: # each agent's turn
                 if self._all_rescued() or not self._any_agent_can_reach_people():
                     if visualize: self._display()
+                    print("\n\033[91mAll people have been rescued or no agent can reach remaining people. Simulation ends.\033[0m")
                     return
                 self._auto_rescue(rec) # auto-rescue before next action (required by assignment to be done right before action)
                 obs = self._make_obs(rec)
