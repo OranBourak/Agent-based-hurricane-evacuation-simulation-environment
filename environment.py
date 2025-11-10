@@ -19,6 +19,7 @@ class Environment:
         self.Q, self.U, self.P = Q, U, P
         self.time = 0
         self.agents: List[EnvAgentRecord] = []
+        self.simulation_done = False
 
     # ---- registration ----
     def add_agent(self, agent: Agent, start_vertex: int, equipped: bool = False) -> int:
@@ -36,6 +37,7 @@ class Environment:
         for _ in range(max_steps):
             if self._all_rescued() or not self._any_agent_can_reach_people(): # termination conditions
                 if visualize: self._display()
+                print("\n✅ Simulation completed successfully. All people have been rescued or are unreachable.\n")
                 break
             # ----  agent turns loop ----
             for rec in self.agents: # each agent's turn
@@ -85,8 +87,13 @@ class Environment:
         rec.state = st
 
         if act.kind == ActionType.TERMINATE:
-            print("\nSimulation terminated by user.")
-            exit(0)
+            # Check if simulation already finished naturally
+            if self._all_rescued() or not self._any_agent_can_reach_people():
+                self.simulation_done = True
+                return  # don't exit here; let run() finish cleanly
+            else:
+                print("\033[91m\nSimulation terminated manually by user.\033[0m")
+                exit(0)
         
         # Apply action effects and update time
         if act.kind == ActionType.NO_OP:
