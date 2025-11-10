@@ -61,11 +61,13 @@ def main():
     print(f"Q={Q} (equip time), U={U} (unequip time), P={P} (speed penalty)\n")
 
     try:
-        use_custom = input("Would you like to change these values? [y/N]: ").strip().lower()
+        use_custom = input("Would you like to change these values? [y/n]: ").strip().lower()
         if use_custom == "y":
             Q = int(input(f"Enter Q (equip time) [{Q}]: ") or Q)
             U = int(input(f"Enter U (unequip time) [{U}]: ") or U)
             P = int(input(f"Enter P (speed penalty) [{P}]: ") or P)
+        else:
+            print("Using constants from file.")
     except Exception:
         print("Invalid input, using defaults from file.")
 
