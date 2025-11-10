@@ -83,8 +83,9 @@ class Environment:
         st = rec.state
         rec.state = st
 
-        if act == ActionType.TERMINATE:
-            return
+        if act.kind == ActionType.TERMINATE:
+            print("\nSimulation terminated by user.")
+            exit(0)
         
         # Apply action effects and update time
         if act.kind == ActionType.NO_OP:
