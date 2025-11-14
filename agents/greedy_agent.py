@@ -115,3 +115,28 @@ class GreedySearchAgent:
             state.current = next_v
 
         return state.route
+
+ ## Example usage for shortest_exec_path in planning, assuming you have a route:
+ ## needs to be integrated into the agent's decide function, with a loop to execute route provided by plan_route function.
+# full_plan = []
+# current = start
+
+# for stop in greedy_route:      # greedy_route = [a, b, c, ...]
+# segment = shortest_exec_path(
+#     base_graph,
+#     start_vid=current,
+#     goal_vid=stop,
+#     equip_time=EQUIP_TIME,
+#     unequip_time=UNEQUIP_TIME,
+# )
+
+# if not segment:
+#     break  # cannot reach
+
+# # avoid duplicating current vertex
+# if full_plan:
+#     full_plan.extend(segment[1:])
+# else:
+#     full_plan.extend(segment)
+
+# current = stop
