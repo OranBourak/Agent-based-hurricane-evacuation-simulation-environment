@@ -1,76 +1,117 @@
-from __future__ import annotations
-from agent_base import Agent, Observation, Action, ActionType
-import heapq
+from dataclasses import dataclass
+from typing import List, Set, Dict
 
-class GreedyAgent(Agent):
-    """Moves toward nearest people via shortest UNFLOODED path."""
-    can_rescue = True
-    def __init__(self, label: str = "G") -> None:
+from graph import Graph
+from heuristics import build_transformed_graph, heuristic
+
+
+@dataclass
+class SearchState:
+    """
+    A node in the abstract search tree.
+
+    For the greedy agent we only really use:
+      - current: where we stand now
+      - remaining: which interesting vertices still have people
+      - route: the order in which we've visited interesting vertices so far
+    """
+    current: int
+    remaining: Set[int]
+    route: List[int]
+    expansions: int
+
+
+class GreedySearchAgent:
+    """
+    Part-2 greedy *search* agent (NOT the stupid greedy from part 1).
+
+    It assumes:
+      - it acts alone
+      - the heuristic world uses the transformed graph
+        (kits ignored, flooded costs multiplied by P).
+
+    Interface here is a pure planner:
+      plan_route(start_vertex) -> [v1, v2, ...]
+    """
+
+    def __init__(self, base_graph: Graph, P: int, label: str = "G_search") -> None:
         self.label = label
+        # 1) keep original graph if you ever need it
+        self.base_graph = base_graph
+        # 2) build and keep the transformed graph (only ONCE per agent)
+        self.transformed_graph = build_transformed_graph(base_graph, P)
+        self.P = P
 
-    def _build_adj(self, obs: Observation):
-        adj = {}
-        for u, v, w, f in obs.edges:
-            if f:  # flooded roads are blocked
-                continue
-            adj.setdefault(u, []).append((v, w)) # add edge u->v
-            adj.setdefault(v, []).append((u, w)) # add edge v->u
-        for k in adj:
-            adj[k].sort(key=lambda x: x[0])
-        return adj
+    # ---------- core greedy search ----------
 
-    def _nearest_people(self, obs: Observation):
-        targets = [vid for vid, (p, _) in obs.vertices.items() if p > 0]
-        if not targets:
+    def _initial_state(self, start_vertex: int) -> SearchState:
+        """Create initial search state from start vertex."""
+        # "Interesting" nodes = vertices that currently have people
+        remaining = {
+            vid for vid, v in self.transformed_graph.vertices.items()
+            if v.people > 0 and vid != start_vertex
+        }
+
+        route: List[int] = []
+        # If start itself has people, we conceptually "visit" it first
+        if self.transformed_graph.vertices[start_vertex].people > 0:
+            route.append(start_vertex)
+
+        return SearchState(
+            current=start_vertex,
+            remaining=remaining,
+            route=route,
+            expansions=0
+        )
+
+    def _choose_best_successor(self, state: SearchState) -> int | None:
+        """
+        Given a search state, pick the 'best' next vertex from remaining,
+        according to the heuristic (distance on transformed graph).
+
+        This is the "expand node with lowest heuristic value" step.
+        """
+        best_v = None
+        best_h = float("inf")
+
+        for v in state.remaining:
+            h = heuristic(state.current, v, self.transformed_graph)
+            if h < best_h or (h == best_h and (best_v is None or v < best_v)):
+                best_h = h
+                best_v = v
+
+        # If everything is unreachable (all h = inf), we return None
+        if best_v is None or best_h == float("inf"):
             return None
-        start = obs.self_state.current_vertex
-        adj = self._build_adj(obs)
-        pq = [(0, start)] # priority queue of (distance, vertex)
-        dist = {start: 0}
-        while pq:
-            d, u = heapq.heappop(pq) # get vertex with smallest distance, d is distance to u
-            if u in targets:
-                return u
-            if d != dist[u]:
-                continue
-            for v, w in adj.get(u, []): # explore neighbors of u
-                nd = d + w # new distance to neighbor v
-                if v not in dist or nd < dist[v]:
-                    dist[v] = nd
-                    heapq.heappush(pq, (nd, v))
-        return None
+        return best_v
 
-    def _next_step(self, obs: Observation, goal: int):
-        ''' Return the next vertex to step to on the shortest path to goal. '''
-        adj = self._build_adj(obs)
-        start = obs.self_state.current_vertex
-        pq = [(0, start)]
-        dist = {start: 0}
-        prev = {}
-        while pq:
-            d, u = heapq.heappop(pq)
-            if d != dist[u]:
-                continue
-            if u == goal:
+    def plan_route(self, start_vertex: int) -> List[int]:
+        """
+        Main greedy loop:
+
+          1. Build the initial state.
+          2. While there are remaining interesting vertices:
+               - choose the one with minimal heuristic (distance)
+               - move there (update current, remaining, route)
+          3. Return the route = order of interesting vertices to visit.
+
+        If at some point no remaining vertex is reachable under the
+        simplified model, we stop and return what we’ve built so far.
+        """
+        state = self._initial_state(start_vertex)
+
+        # If start had people, it's already in route
+        # (otherwise route starts empty)
+        while state.remaining:
+            next_v = self._choose_best_successor(state)
+            state.expansions += 1
+            if next_v is None:
+                # No more legal moves in the simplified world
                 break
-            for v, w in adj.get(u, []):
-                nd = d + w
-                if v not in dist or nd < dist[v]:
-                    dist[v] = nd
-                    prev[v] = u
-                    heapq.heappush(pq, (nd, v))
-        if goal not in dist:
-            return None
-        cur = goal
-        while prev.get(cur) != start:
-            cur = prev[cur]
-        return cur
 
-    def decide(self, obs: Observation) -> Action:
-        goal = self._nearest_people(obs)
-        if goal is None:
-            return Action(ActionType.TERMINATE)
-        if goal == obs.self_state.current_vertex:
-            return Action(ActionType.NO_OP)
-        step = self._next_step(obs, goal)
-        return Action(ActionType.TRAVERSE, to_vertex=step) if step else Action(ActionType.TERMINATE)
+            # "Expand" this node:
+            state.route.append(next_v)
+            state.remaining.remove(next_v)
+            state.current = next_v
+
+        return state.route
