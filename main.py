@@ -1,7 +1,7 @@
 import argparse
 from environment import Environment, Parser
 from agents.human_agent import HumanAgent
-from agents.greedy_agent import GreedyAgent
+from agents.stupid_greedy_agent import StupidGreedyAgent
 from agents.thief_agent import ThiefAgent
 
 def build_demo_file(path:str)->None:
@@ -40,7 +40,7 @@ def interactive_add_agents(env:Environment):
         if v<1 or v>len(env.graph.vertices):
             print(f"\n\033[91mInvalid vertex. Using default value of 1.\033[0m\n")
             v=1
-        if t=="greedy": env.add_agent(GreedyAgent(),v)
+        if t=="greedy": env.add_agent(StupidGreedyAgent(),v)
         elif t=="thief": env.add_agent(ThiefAgent(),v)
         else: env.add_agent(HumanAgent(),v)
 
@@ -77,7 +77,7 @@ def main():
     env = Environment(graph, Q=Q, U=U, P=P)
 
     if args.no_interactive:
-        env.add_agent(GreedyAgent(),1)
+        env.add_agent(StupidGreedyAgent(),1)
         env.add_agent(ThiefAgent(),4)
         env.add_agent(HumanAgent(),2)
     else:
