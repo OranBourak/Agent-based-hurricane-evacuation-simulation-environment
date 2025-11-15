@@ -86,130 +86,156 @@ class Graph:
                     heapq.heappush(pq, (nd, v))
         return None
     
-    
-    def compute_edge_cost(edge, has_kit):
+    def compute_edge_cost(self, edge: Edge, has_kit: bool, kit_penalty_factor: int) -> float:
         """
-        Compute the real movement cost for this edge.
-        Handles flooded/unflooded logic and whether kit is equipped.
-        Returns float("inf") for illegal moves.
+        Compute the movement cost for this edge, given whether the agent has a kit.
+        Returns:
+            float("inf") if the move is illegal (flooded without kit).
+
+        edge.flooded:
+          - if has_kit: cost = weight * kit_penalty_factor
+          - else:      illegal -> inf
+
+        edge not flooded:
+          - if has_kit: cost = weight * kit_penalty_factor  (penalty for carrying kit)
+          - else:       cost = weight
         """
 
-        # Case 1: edge is flooded
         if edge.flooded:
             if has_kit:
-                # You can cross it at normal cost (or maybe discounted, depending on spec)
-                return edge.weight
+                return edge.weight * kit_penalty_factor
             else:
-                # Cannot cross flooded road without kit
                 return float("inf")
 
-        # Case 2: edge is NOT flooded
+        # not flooded
         if has_kit:
-            # Some versions of the assignment penalize unflooded travel with a kit
-            # If your rules say there's no penalty, change this to "return edge.weight"
-            return edge.weight       # or penalty if assignment says so
+            return edge.weight * kit_penalty_factor
 
-        # Case 3: normal case: no flooded road, no kit
         return edge.weight
+    
 
+    def _reconstruct_actions(
+            self,
+            final_state: ExecState,
+            parent: Dict[ExecState, Optional[ExecState]],
+            parent_action: Dict[ExecState, Optional[Tuple[str, int]]],
+        ) -> List[Tuple[str, int]]:
+            """
+            Reconstruct a list of actions from the start state to the final_state.
 
-    def reconstruct_path(final_state, parent, parent_step):
-        """ Reconstruct the physical path (list of vertex ids) from start to goal,
-        given the parent mapping of ExecStates and the vertex transitions."""
-        path_states = []
-        cur = final_state
-        while cur is not None:
-            path_states.append(cur)
-            cur = parent[cur]
-        path_states.reverse()
+            Each action is a tuple: ("equip"/"unequip"/"move", vertex_id_or_target_vid)
 
-        # extract only the vertices
-        path_vertices = []
-        last_vid = None
-        for st in path_states:
-            if st.vid != last_vid:
-                path_vertices.append(st.vid)
-                last_vid = st.vid
+            Returns:
+                actions: list from first action to last action.
+            """
+            actions_rev: List[Tuple[str, int]] = []
+            cur = final_state
 
-        return path_vertices
+            # Walk back until the start_state (whose parent_action is None)
+            while cur in parent_action and parent_action[cur] is not None:
+                act = parent_action[cur]
+                actions_rev.append(act)
+                cur = parent[cur]
+
+            actions_rev.reverse()
+            return actions_rev
 
 
 
     def shortest_exec_path(
-        graph,
-        start_vid: int,
-        goal_vid: int,
-        equip_time: int,
-        unequip_time: int,
-    ):
-        """
-        True shortest path from start_vid to goal_vid,
-        considering REAL costs: kit rules, flooded roads, equip/unequip actions.
+            self,
+            start_vid: int,
+            goal_vid: int,
+            equip_time: int,
+            unequip_time: int,
+            kit_penalty_factor: int,
+        ) -> Tuple[float, List[Tuple[str, int]]]:
+            """
+            Compute the true shortest *execution* path from start_vid to goal_vid,
+            considering:
+            - flooded vs unflooded edges,
+            - whether the agent has an amphibian kit,
+            - equip and unequip actions with given times.
 
-        Uses Dijkstra's algorithm on an expanded state space (vid, has_kit).
-        The search space includes equip/unequip actions at each vertex.
-        That search space considers all possible states and transitions can be existed by:
-        - Equipping a kit (if available at current vertex)
-        - Unequipping a kit
-        - Moving along edges (with costs depending on flooded status and kit possession)
+            The search space is over ExecState(vid, has_kit).
+            From each state we consider:
+            - EQUIP (if kits > 0 at that vertex and we don't already have one),
+            - UNEQUIP (if we have a kit),
+            - MOVE to neighbor (if legal under flooding; cost depends on kit).
 
-        Returns a list of vertex ids for the optimal physical path.
-        """
+            Args:
+                start_vid: starting vertex id
+                goal_vid: goal vertex id
+                equip_time: time cost to equip a kit
+                unequip_time: time cost to unequip a kit
+                kit_penalty_factor: multiplicative penalty for moving with a kit
 
-        start_state = ExecState(start_vid, False)
+            Returns:
+                (best_cost, actions), where:
+                - best_cost is the minimal total time
+                - actions is a list of ("equip"/"unequip"/"move", vid/target_vid)
+                    in the order they must be executed.
 
-        pq = [(0, start_state)]
-        dist = {start_state: 0}
-        parent = {start_state: None}
-        parent_step = {start_state: None}  # store vertex transitions
+                If no path exists, returns (float("inf"), []).
+            """
 
-        while pq:
-            d, state = heapq.heappop(pq)
-            if d != dist[state]:
-                continue
+            start_state = ExecState(start_vid, False)
 
-            u = state.vid
+            # Priority queue over (cost, ExecState)
+            pq: List[Tuple[float, ExecState]] = [(0.0, start_state)]
+            dist: Dict[ExecState, float] = {start_state: 0.0}
+            parent: Dict[ExecState, Optional[ExecState]] = {start_state: None}
+            parent_action: Dict[ExecState, Optional[Tuple[str, int]]] = {start_state: None}
 
-            # Goal reached (kit status doesn't matter).
-            if u == goal_vid:
-                return reconstruct_path(state, parent, parent_step)
-
-            # ---------- Equip action ----------
-            if not state.has_kit and graph.vertices[u].has_kit:
-                ns = ExecState(u, True)
-                nd = d + equip_time
-                if nd < dist.get(ns, float("inf")):
-                    dist[ns] = nd
-                    parent[ns] = state
-                    parent_step[ns] = u
-                    heapq.heappush(pq, (nd, ns))
-
-            # ---------- Unequip action ----------
-            if state.has_kit:
-                ns = ExecState(u, False)
-                nd = d + unequip_time
-                if nd < dist.get(ns, float("inf")):
-                    dist[ns] = nd
-                    parent[ns] = state
-                    parent_step[ns] = u
-                    heapq.heappush(pq, (nd, ns))
-
-            # ---------- Move along edges ----------
-            for v, edge in graph.neighbors(u):
-                move_cost = compute_edge_cost(edge, state.has_kit)
-                if move_cost == float("inf"):
+            while pq:
+                d, state = heapq.heappop(pq)
+                if d != dist.get(state, float("inf")):
                     continue
 
-                ns = ExecState(v, state.has_kit)
-                nd = d + move_cost
+                u = state.vid
 
-                if nd < dist.get(ns, float("inf")):
-                    dist[ns] = nd
-                    parent[ns] = state
-                    parent_step[ns] = v
-                    heapq.heappush(pq, (nd, ns))
+                # Goal reached (we don't care whether we have a kit at the end)
+                if u == goal_vid:
+                    actions = self._reconstruct_actions(state, parent, parent_action)
+                    return d, actions
 
-        # No path
-        return []
+                # --------- EQUIP action ---------
+                # Allowed only if we don't already have a kit AND there is at least one kit at u.
+                if not state.has_kit and self.vertices[u].kits > 0:
+                    ns = ExecState(u, True)
+                    nd = d + equip_time
+                    if nd < dist.get(ns, float("inf")):
+                        dist[ns] = nd
+                        parent[ns] = state
+                        parent_action[ns] = ("equip", u)
+                        heapq.heappush(pq, (nd, ns))
+
+                # --------- UNEQUIP action ---------
+                if state.has_kit:
+                    ns = ExecState(u, False)
+                    nd = d + unequip_time
+                    if nd < dist.get(ns, float("inf")):
+                        dist[ns] = nd
+                        parent[ns] = state
+                        parent_action[ns] = ("unequip", u)
+                        heapq.heappush(pq, (nd, ns))
+
+                # --------- MOVE actions along each edge ---------
+                for v, edge in self.neighbors(u):
+                    move_cost = self.compute_edge_cost(edge, state.has_kit, kit_penalty_factor)
+                    if move_cost == float("inf"):
+                        continue  # illegal move (e.g., flooded without kit)
+
+                    ns = ExecState(v, state.has_kit)
+                    nd = d + move_cost
+
+                    if nd < dist.get(ns, float("inf")):
+                        dist[ns] = nd
+                        parent[ns] = state
+                        parent_action[ns] = ("move", v)
+                        heapq.heappush(pq, (nd, ns))
+
+            # No path
+            return float("inf"), []
 
 
