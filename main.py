@@ -3,6 +3,7 @@ from environment import Environment, Parser
 from agents.human_agent import HumanAgent
 from agents.stupid_greedy_agent import StupidGreedyAgent
 from agents.thief_agent import ThiefAgent
+from agents.greedy_agent import GreedyAgent
 
 def build_demo_file(path:str)->None:
     demo = """#N 4
@@ -32,16 +33,17 @@ def interactive_add_agents(env:Environment):
         print("\n\033[91mInvalid input. Using default value of 3.\033[0m\n")
         n=3
     for i in range(n):
-        t=(input(f"\nAgent #{i+1} type [greedy/thief/human] (default greedy): ") or "greedy").strip().lower()
-        if t not in ("greedy","thief","human"):
+        t=(input(f"\nAgent #{i+1} type [stupid greedy/thief/human/greedy] (default is stupid greedy): ") or "greedy").strip().lower()
+        if t not in ("greedy","thief","human","stupid greedy"):
             print(f"\n\033[91mInvalid agent type. Using default 'greedy'.\033[0m\n")
-            t="greedy"
+            t="stupid greedy"
         v=int(input(f"\nStart vertex for agent #{i+1} (Range: [1 - {len(env.graph.vertices)}] ): ") or "1")
         if v<1 or v>len(env.graph.vertices):
             print(f"\n\033[91mInvalid vertex. Using default value of 1.\033[0m\n")
             v=1
-        if t=="greedy": env.add_agent(StupidGreedyAgent(),v)
+        if t=="stupid greedy": env.add_agent(StupidGreedyAgent(),v)
         elif t=="thief": env.add_agent(ThiefAgent(),v)
+        elif t=="greedy": env.add_agent(GreedyAgent(env), v)
         else: env.add_agent(HumanAgent(),v)
 
 def main():
@@ -62,6 +64,9 @@ def main():
     print("\nGlobal constants from file:")
     print(f"Q={Q} (equip time), U={U} (unequip time), P={P} (speed penalty)\n")
 
+    # Get T value from user
+    t = float(input("Enter T (time per expansion) [default 0]: ") or "0")
+    
     try:
         use_custom = input("Would you like to change these values? [y/n]: ").strip().lower()
         if use_custom == "y":
@@ -74,7 +79,7 @@ def main():
         print("\033[91mInvalid input, using defaults from file.\033[0m")
 
     # --- Create the environment using either updated or default constants ---
-    env = Environment(graph, Q=Q, U=U, P=P)
+    env = Environment(graph, Q=Q, U=U, P=P, T=t)
 
     if args.no_interactive:
         env.add_agent(StupidGreedyAgent(),1)

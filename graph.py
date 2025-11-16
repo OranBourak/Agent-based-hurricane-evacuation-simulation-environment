@@ -18,7 +18,7 @@ class Edge:
     weight: int
     flooded: bool = False
 
-@dataclass(frozen=True)
+@dataclass(order=True, frozen=True)
 class ExecState:
     ''' Execution state for pathfinding with equipment status (vertex id and whether kit is equipped) 
     Used in shortest_exec_path function, Which finds shortest path considering equipment actions. '''
@@ -173,7 +173,7 @@ class Graph:
             Returns:
                 (best_cost, actions), where:
                 - best_cost is the minimal total time
-                - actions is a list of ("equip"/"unequip"/"move", vid/target_vid)
+                - actions is a list of ("equip"/"unequip"/"traverse", vid/target_vid)
                     in the order they must be executed.
 
                 If no path exists, returns (float("inf"), []).
@@ -232,7 +232,7 @@ class Graph:
                     if nd < dist.get(ns, float("inf")):
                         dist[ns] = nd
                         parent[ns] = state
-                        parent_action[ns] = ("move", v)
+                        parent_action[ns] = ("traverse", v)
                         heapq.heappush(pq, (nd, ns))
 
             # No path

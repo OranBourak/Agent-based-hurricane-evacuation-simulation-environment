@@ -5,7 +5,7 @@ import heapq
 class StupidGreedyAgent(Agent):
     """Moves toward nearest people via shortest UNFLOODED path."""
     can_rescue = True
-    def __init__(self, label: str = "G") -> None:
+    def __init__(self, label: str = "stupid greedy") -> None:
         self.label = label
 
     def _build_adj(self, obs: Observation):

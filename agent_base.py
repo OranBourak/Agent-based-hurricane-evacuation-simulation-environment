@@ -58,4 +58,5 @@ class Agent(Protocol):
     """
     label: str
     can_rescue: bool
+    expansions: Optional[int]
     def decide(self, obs: Observation) -> Action: ...

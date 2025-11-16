@@ -5,7 +5,7 @@ import heapq
 class ThiefAgent(Agent):
     """Seeks nearest kit, equips, then moves far from others; never rescues."""
     can_rescue = False
-    def __init__(self, label: str = "T") -> None:
+    def __init__(self, label: str = "thief") -> None:
         self.label = label
 
     def _build_adj(self, obs: Observation, allow_flooded: bool):

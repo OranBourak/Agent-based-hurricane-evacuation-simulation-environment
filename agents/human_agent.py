@@ -3,7 +3,7 @@ from agent_base import Agent, Observation, Action, ActionType
 
 class HumanAgent(Agent):
     can_rescue = True
-    def __init__(self, label: str = "H") -> None:
+    def __init__(self, label: str = "human") -> None:
         self.label = label
 
     def decide(self, obs: Observation) -> Action:

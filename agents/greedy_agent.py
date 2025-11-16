@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from typing import List, Set, Dict
-
+from agent_base import Agent, Observation, Action, ActionType
+from environment import Environment
 from graph import Graph
-from heuristics import build_transformed_graph, heuristic
+from utils.heuristic_func import build_transformed_graph, heuristic
 
 
 @dataclass
@@ -18,10 +19,10 @@ class SearchState:
     current: int
     remaining: Set[int]
     route: List[int]
-    expansions: int
+    # expansions: int
 
 
-class GreedySearchAgent:
+class GreedyAgent(Agent):
     """
     Part-2 greedy *search* agent (NOT the stupid greedy from part 1).
 
@@ -34,13 +35,15 @@ class GreedySearchAgent:
       plan_route(start_vertex) -> [v1, v2, ...]
     """
 
-    def __init__(self, base_graph: Graph, P: int, label: str = "G_search") -> None:
+    def __init__(self, env: Environment, label: str = "greedy") -> None:
         self.label = label
         # 1) keep original graph if you ever need it
-        self.base_graph = base_graph
+        self.base_graph = env.graph
         # 2) build and keep the transformed graph (only ONCE per agent)
-        self.transformed_graph = build_transformed_graph(base_graph, P)
-        self.P = P
+        self.transformed_graph = build_transformed_graph(env.graph, env.P)
+        self.env = env
+        self.action_index = 0
+        self.expansions = 0
 
     # ---------- core greedy search ----------
 
@@ -61,7 +64,6 @@ class GreedySearchAgent:
             current=start_vertex,
             remaining=remaining,
             route=route,
-            expansions=0
         )
 
     def _choose_best_successor(self, state: SearchState) -> int | None:
@@ -99,12 +101,13 @@ class GreedySearchAgent:
         simplified model, we stop and return what we’ve built so far.
         """
         state = self._initial_state(start_vertex)
+        state.route.append(start_vertex)
 
         # If start had people, it's already in route
         # (otherwise route starts empty)
         while state.remaining:
             next_v = self._choose_best_successor(state)
-            state.expansions += 1
+            self.expansions += 1
             if next_v is None:
                 # No more legal moves in the simplified world
                 break
@@ -116,27 +119,42 @@ class GreedySearchAgent:
 
         return state.route
 
- ## Example usage for shortest_exec_path in planning, assuming you have a route:
- ## needs to be integrated into the agent's decide function, with a loop to execute route provided by plan_route function.
-# full_plan = []
-# current = start
+    
+    def decide(self, obs: Observation):
+        if self.action_index == 0:
+            # action array logic
+            self.action_array = []
+            route = self.plan_route(obs.self_state.current_vertex)
+            for i in range(len(route)-1):
+                self.action_array += self.base_graph.shortest_exec_path(route[i], route[i+1], obs.Q, obs.U, obs.P)[1]
 
-# for stop in greedy_route:      # greedy_route = [a, b, c, ...]
-# segment = shortest_exec_path(
-#     base_graph,
-#     start_vid=current,
-#     goal_vid=stop,
-#     equip_time=EQUIP_TIME,
-#     unequip_time=UNEQUIP_TIME,
-# )
+            self.action_index += 1
+            action = self.action_array[0]
 
-# if not segment:
-#     break  # cannot reach
+            if action[0] == "traverse":
+                action = Action(ActionType.TRAVERSE, action[1])
+            elif action[0] == "equip":
+                action = Action(ActionType.EQUIP, None)
+            elif action[0] == "unequip":
+                action = Action(ActionType.UNEQUIP, None)
 
-# # avoid duplicating current vertex
-# if full_plan:
-#     full_plan.extend(segment[1:])
-# else:
-#     full_plan.extend(segment)
+            return action
+        else:
+            if self.action_index < len(self.action_array):
+                next_action = self.action_array[self.action_index]
+            else:
+                next_action = ("noop", None)
+            self.action_index += 1
 
-# current = stop
+            if next_action[0] == "traverse":
+                next_action = Action(ActionType.TRAVERSE, next_action[1])
+            elif next_action[0] == "equip":
+                next_action = Action(ActionType.EQUIP, None)
+            elif next_action[0] == "unequip":
+                next_action = Action(ActionType.UNEQUIP, None)
+            elif next_action[0] == "noop":
+                next_action = Action(ActionType.NO_OP, None)
+                
+            return next_action
+            
+

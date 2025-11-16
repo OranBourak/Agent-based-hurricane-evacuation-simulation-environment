@@ -14,12 +14,13 @@ class EnvAgentRecord:
 
 class Environment:
     """Turn-based simulator for hurricane evacuation agents."""
-    def __init__(self, graph: Graph, Q: int, U: int, P: int) -> None:
+    def __init__(self, graph: Graph, Q: int, U: int, P: int, T:float) -> None:
         self.graph = graph
         self.Q, self.U, self.P = Q, U, P
         self.time = 0
         self.agents: List[EnvAgentRecord] = []
         self.simulation_done = False
+        self.T = T
 
     # ---- registration ----
     def add_agent(self, agent: Agent, start_vertex: int, equipped: bool = False) -> int:
@@ -49,6 +50,7 @@ class Environment:
                 obs = self._make_obs(rec)
                 act = rec.agent.decide(obs)
                 self._apply_action(rec, act)
+                self._auto_rescue(rec)
                 if visualize: self._display()
 
     # ---- helpers ----
@@ -188,7 +190,12 @@ class Environment:
 
     def _display(self):
         ''' Display the current state of the environment using ASCII rendering. '''
-        scores = {r.state.agent_id: r.state.rescued * 1000 - self.time for r in self.agents}
+        scores = dict()
+        for agent in self.agents:
+            if agent.agent.label in ["stupid greedy", "thief", "human"]:
+                scores[agent.state.agent_id] = agent.state.rescued * 1000 - self.time
+            else:
+                scores[agent.state.agent_id] = self.time + agent.agent.expansions * self.T
         verts = {vid:(v.people,v.kits) for vid,v in self.graph.vertices.items()}
         edges=[]
         seen=set()
