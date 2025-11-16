@@ -149,6 +149,7 @@ class Graph:
             equip_time: int,
             unequip_time: int,
             kit_penalty_factor: int,
+            has_kit: bool
         ) -> Tuple[float, List[Tuple[str, int]]]:
             """
             Compute the true shortest *execution* path from start_vid to goal_vid,
@@ -179,7 +180,7 @@ class Graph:
                 If no path exists, returns (float("inf"), []).
             """
 
-            start_state = ExecState(start_vid, False)
+            start_state = ExecState(start_vid, has_kit)
 
             # Priority queue over (cost, ExecState)
             pq: List[Tuple[float, ExecState]] = [(0.0, start_state)]

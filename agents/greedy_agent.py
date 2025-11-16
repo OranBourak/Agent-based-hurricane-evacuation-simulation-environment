@@ -125,8 +125,9 @@ class GreedyAgent(Agent):
             # action array logic
             self.action_array = []
             route = self.plan_route(obs.self_state.current_vertex)
+            has_kit = obs.self_state.equipped
             for i in range(len(route)-1):
-                self.action_array += self.base_graph.shortest_exec_path(route[i], route[i+1], obs.Q, obs.U, obs.P)[1]
+                self.action_array += self.base_graph.shortest_exec_path(route[i], route[i+1], obs.Q, obs.U, obs.P, has_kit)[1]
 
             self.action_index += 1
             action = self.action_array[0]
