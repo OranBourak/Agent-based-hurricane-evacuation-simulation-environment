@@ -3,7 +3,7 @@ from environment import Environment, Parser
 from agents.human_agent import HumanAgent
 from agents.stupid_greedy_agent import StupidGreedyAgent
 from agents.thief_agent import ThiefAgent
-from agents.greedy_agent import GreedyAgent
+from agents.greedy_agent_alt import GreedyAgent
 
 def build_demo_file(path:str)->None:
     demo = """#N 4
