@@ -29,7 +29,7 @@ def render(time:int,Q:int,U:int,P:int,
     print("\nEdges (u--v : W, F?):")
     for u,v,w,f in sorted(edges,key=lambda e:(min(e[0],e[1]),max(e[0],e[1]))):
         print(f"  {u}--{v} : W{w}, {'F' if f else 'OK'}")
-    print("\nScores (rescued*1000 - time):")
+    print("\nScores:")
     for a in sorted(agents,key=lambda x:x.agent_id):
         s=scores.get(a.agent_id,0)
         print(f"  {a.label}#{a.agent_id}: {s}  (rescued={a.rescued}, actions={a.actions_done})")
