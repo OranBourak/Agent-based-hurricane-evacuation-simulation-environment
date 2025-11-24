@@ -37,8 +37,7 @@ class Environment:
 
         for _ in range(max_steps):
             if self._all_rescued() or not self._any_agent_can_reach_people(): # termination conditions
-                if visualize: self._display()
-                print("\n✅ Simulation completed successfully. All people have been rescued or are unreachable.\n")
+                print("\n Simulation completed successfully. All people have been rescued or are unreachable.\n")
                 break
             # ----  agent turns loop ----
             for rec in self.agents: # each agent's turn
