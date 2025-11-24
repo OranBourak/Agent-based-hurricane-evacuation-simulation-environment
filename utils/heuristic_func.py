@@ -1,6 +1,7 @@
-# heuristics.py
-from graph import Graph, Vertex, Edge
-import heapq
+from graph import Graph
+from typing import List
+
+INF = 10**15
 
 def build_transformed_graph(base_graph, P):
     """
@@ -33,35 +34,62 @@ def build_transformed_graph(base_graph, P):
 
     return g2
 
-
-def heuristic(location, destination, graph):
-    """
-    Heuristic value = shortest-path distance from `location` to `destination`
-    on the *transformed* graph (weights already include P for flooded edges).
-
-    `graph` here is the transformed graph that the agent owns.
-    """
-    if location == destination:
+def _shortest_distance_on_graph(g: Graph, u: int, v: int) -> int:
+    """Return shortest-path distance between u and v on a graph."""
+    if u == v:
         return 0
 
-    # If your Graph already has a shortest_path method, you can use that instead
-    # and just return the distance part. Here’s a generic Dijkstra, using
-    # graph.neighbors(u) and edge.weight.
-    pq = [(0, location)]  # (dist, vertex)
-    dist = {location: 0}
+    res = g.dijkstra_shortest_path(u, v, allow_flooded=True)
+    if res is None:
+        return INF
 
-    while pq:
-        d, u = heapq.heappop(pq)
-        if u == destination:
-            return d
-        if d != dist[u]:
-            continue
+    dist, _path = res
+    return int(dist)
 
-        for v, e in graph.neighbors(u):
-            nd = d + e.weight  # already transformed, no flooded logic here
-            if v not in dist or nd < dist[v]:
-                dist[v] = nd
-                heapq.heappush(pq, (nd, v))
 
-    # No path
-    return float("inf")
+def heuristic(g: Graph, vertices: List[int]) -> int:
+    """recieves a transformed graph and a list of nodes of interest
+       returns the weight of the minimum spanning tree covering those nodes in the graph"""
+    vertices = sorted(set(vertices))
+    n = len(vertices)
+
+    if n <= 1:
+        return 0
+
+    # calculating shortest distance between each pair of vertices
+    dist = [[0] * n for _ in range(n)]
+    for i in range(n):
+        for j in range(i + 1, n):
+            d = _shortest_distance_on_graph(g, vertices[i], vertices[j])
+            dist[i][j] = d
+            dist[j][i] = d
+
+    # running prim's algorithm to calculate MST
+    in_mst = [False] * n
+    min_edge = [INF] * n
+    min_edge[0] = 0
+
+    total_cost = 0 # sum of edge weights in the tree
+
+    for _ in range(n):
+        u = -1
+        best = INF
+
+        # pick best vertex to add
+        for i in range(n):
+            if not in_mst[i] and min_edge[i] < best:
+                best = min_edge[i]
+                u = i
+
+        if u == -1 or best == INF:
+            return INF   # not all nodes are reachable
+
+        in_mst[u] = True
+        total_cost += min_edge[u]
+
+        # relax neighbors
+        for v in range(n):
+            if not in_mst[v] and dist[u][v] < min_edge[v]:
+                min_edge[v] = dist[u][v]
+
+    return total_cost
