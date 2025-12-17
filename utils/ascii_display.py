@@ -4,12 +4,13 @@ from agent_base import AgentState
 def render(time:int,Q:int,U:int,P:int,
            vertices:Dict[int,Tuple[int,bool]],
            edges:List[Tuple[int,int,int,bool]],
-           agents:List[AgentState],
-           scores:Dict[int,int])->None:
+           agents:List[Tuple[AgentState,int]],
+           scores:Dict[int,int]
+           )->None:
     print("\n" + "="*70)
     print(f"Time={time} | Q={Q} U={U} P={P}")
     by_v: Dict[int, List[str]] = {} # vertex_id -> list of agent labels
-    for a in agents:
+    for a,_ in agents:
     # Add "K" if equipped
         display_label = a.label + ("K" if a.equipped else "")
         by_v.setdefault(a.current_vertex, []).append(display_label)
@@ -30,7 +31,7 @@ def render(time:int,Q:int,U:int,P:int,
     for u,v,w,f in sorted(edges,key=lambda e:(min(e[0],e[1]),max(e[0],e[1]))):
         print(f"  {u}--{v} : W{w}, {'F' if f else 'OK'}")
     print("\nScores:")
-    for a in sorted(agents,key=lambda x:x.agent_id):
+    for a ,expansions in sorted(agents,key=lambda x:x[0].agent_id):
         s=scores.get(a.agent_id,0)
-        print(f"  {a.label}#{a.agent_id}: {s}  (rescued={a.rescued}, actions={a.actions_done})")
+        print(f"  {a.label}#{a.agent_id}: {s}  (rescued={a.rescued}, actions={a.actions_done}, expansions={expansions})")
     print("="*70)

@@ -206,7 +206,7 @@ class Environment:
                 if key in seen: continue
                 seen.add(key)
                 edges.append((e.u,e.v,e.weight,e.flooded))
-        render(self.time,self.Q,self.U,self.P,verts,edges,[a.state for a in self.agents],scores)
+        render(self.time,self.Q,self.U,self.P,verts,edges,[(a.state,a.agent.expansions) for a in self.agents],scores)
 
 # ---------------- Parser ----------------
 class Parser:
