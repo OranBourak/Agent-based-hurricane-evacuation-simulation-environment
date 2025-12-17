@@ -5,6 +5,8 @@ from agents.stupid_greedy_agent import StupidGreedyAgent
 from agents.thief_agent import ThiefAgent
 from agents.greedy_agent import GreedyAgent
 from agents.astar_agent import AStarAgent
+from agents.realtime_astar_agent import RealTimeAStarAgent
+
 
 def build_demo_file(path:str)->None:
     demo = """#N 4
@@ -34,8 +36,8 @@ def interactive_add_agents(env:Environment):
         print("\n\033[91mInvalid input. Using default value of 3.\033[0m\n")
         n=3
     for i in range(n):
-        t=(input(f"\nAgent #{i+1} type [stupid greedy/thief/human/greedy/astar] (default is stupid greedy): ") or "greedy").strip().lower()
-        if t not in ("astar","greedy","thief","human","stupid greedy"):
+        t=(input(f"\nAgent #{i+1} type [stupid greedy/thief/human/greedy/astar/rt astar] (default is greedy): ") or "greedy").strip().lower()
+        if t not in ("astar","greedy","thief","human","stupid greedy", "rt astar"):
             print(f"\n\033[91mInvalid agent type. Using default 'greedy'.\033[0m\n")
             t="stupid greedy"
         v=int(input(f"\nStart vertex for agent #{i+1} (Range: [1 - {len(env.graph.vertices)}] ): ") or "1")
@@ -46,6 +48,14 @@ def interactive_add_agents(env:Environment):
         elif t=="thief": env.add_agent(ThiefAgent(),v)
         elif t=="greedy": env.add_agent(GreedyAgent(env), v)
         elif t=="astar": env.add_agent(AStarAgent(env), v)
+        # real time a* requires an additional parameter
+        elif t in ("rt astar"):
+            try:
+                L = int(input("Enter L (expansions per decision) [default 10]: ") or "10")
+            except:
+                print("\n\033[91mInvalid L. Using default 10.\033[0m\n")
+                L = 10
+            env.add_agent(RealTimeAStarAgent(env, L=L), v)
         else: env.add_agent(HumanAgent(),v)
 
 def main():
