@@ -1,11 +1,10 @@
-# realtime_astar_agent.py  (put next to astar_agent.py)
 from dataclasses import dataclass
 from typing import FrozenSet, Dict, List, Optional, Tuple, Literal
 import heapq
 
 from agent_base import Agent, Action, ActionType, Observation
 from environment import Environment
-from graph import Graph
+from graph import Graph, Edge
 from utils.heuristic_func import build_transformed_graph, heuristic
 
 INF = 10**15
@@ -21,8 +20,8 @@ class RTAStarState:
 class RealTimeAStarAgent(Agent):
     """
     Simplified Real-Time A*:
-    - Each decide() runs at most L A* expansions, then commits to the first low-level action.
-    - If it finds a complete optimal plan, it caches it and then does 0 expansions per move.
+    - Each decide() runs at most L A* expansions, then commits to the first primitive action.
+    - No offline full-plan execution unless you explicitly want caching.
     """
 
     def __init__(self, env: Environment, L: int = 10, label: str = "rt_astar") -> None:
@@ -34,33 +33,38 @@ class RealTimeAStarAgent(Agent):
         # total expansions across the whole simulation
         self.expansions: int = 0
 
-        # cached full plan once solved
-        self._solved_plan: bool = False
-        self.action_array: List[Tuple[str, Optional[int]]] = []
-        self.action_index: int = 0
+        # tiebreaker for heapq
+        self._counter: int = 0
 
-    def _remaining_from_obs(self, obs: Observation, start: int) -> FrozenSet[int]:
-
+    def _remaining_from_obs(self, obs: Observation, at: int) -> FrozenSet[int]:
         return frozenset(
             vid for vid, (people, _kits) in obs.vertices.items()
-            if people > 0 and vid != start
+            if people > 0 and vid != at
         )
 
-    def _reconstruct_route(
+    def _move_cost(self, edge: Edge, equipped: bool, obs: Observation) -> float:
+        if edge.flooded and not equipped:
+            return INF
+        return edge.weight * (obs.P if equipped else 1)
+
+    def _h(self, st: RTAStarState) -> float:
+        return float(heuristic(self.transformed_graph, [st.current] + list(st.remaining)))
+
+    def _reconstruct_actions(
         self,
-        state: RTAStarState,
+        goal: RTAStarState,
         parent: Dict[RTAStarState, Optional[RTAStarState]],
-        parent_move: Dict[RTAStarState, Optional[int]],
-    ) -> List[int]:
-        route: List[int] = []
-        cur: Optional[RTAStarState] = state
+        parent_action: Dict[RTAStarState, Optional[Tuple[str, Optional[int]]]],
+    ) -> List[Tuple[str, Optional[int]]]:
+        actions_rev: List[Tuple[str, Optional[int]]] = []
+        cur: Optional[RTAStarState] = goal
         while cur is not None:
-            mv = parent_move.get(cur)
-            if mv is not None:
-                route.append(mv)
+            act = parent_action.get(cur)
+            if act is not None:
+                actions_rev.append(act)
             cur = parent.get(cur)
-        route.reverse()
-        return route
+        actions_rev.reverse()
+        return actions_rev
 
     def _best_open_state(
         self,
@@ -79,19 +83,18 @@ class RealTimeAStarAgent(Agent):
 
     def _limited_astar(
         self, start: int, obs: Observation
-    ) -> Tuple[Literal["goal", "partial", "fail"], List[int]]:
+    ) -> Tuple[Literal["goal", "partial", "fail"], List[Tuple[str, Optional[int]]]]:
         remaining = self._remaining_from_obs(obs, start)
         start_state = RTAStarState(start, remaining, obs.self_state.equipped)
 
         OPEN: List[Tuple[float, float, int, RTAStarState]] = []
-        counter = 0
-
         g_score: Dict[RTAStarState, float] = {start_state: 0.0}
         parent: Dict[RTAStarState, Optional[RTAStarState]] = {start_state: None}
-        parent_move: Dict[RTAStarState, Optional[int]] = {start_state: None}
+        parent_action: Dict[RTAStarState, Optional[Tuple[str, Optional[int]]]] = {start_state: None}
 
-        h0 = heuristic(self.transformed_graph, [start] + list(remaining))
-        heapq.heappush(OPEN, (float(h0), 0.0, counter, start_state))
+        h0 = self._h(start_state)
+        heapq.heappush(OPEN, (h0, 0.0, self._counter, start_state))
+        self._counter += 1
 
         CLOSED: Dict[RTAStarState, float] = {}
 
@@ -99,73 +102,86 @@ class RealTimeAStarAgent(Agent):
         while OPEN and local_expansions < self.L:
             f, g, _c, state = heapq.heappop(OPEN)
 
-            # stale queue entry
+            # stale entry
             if g_score.get(state, INF) != g:
                 continue
 
+            # count a real expansion (we are expanding this state now)
             local_expansions += 1
             self.expansions += 1
 
+            # goal
             if not state.remaining:
-                return "goal", self._reconstruct_route(state, parent, parent_move)
+                acts = self._reconstruct_actions(state, parent, parent_action)
+                return "goal", acts
 
+            # closed check by best g
             if state in CLOSED and CLOSED[state] <= g:
                 continue
             CLOSED[state] = g
 
-            for (n, _e) in self.transformed_graph.adj[state.current]:
-                g_step, act_list = self.base_graph.shortest_exec_path(
-                    state.current, n, obs.Q, obs.U, obs.P, state.equipped
-                )
-                if g_step == INF:
-                    continue
+            u = state.current
+            equipped = state.equipped
+            kits_here = obs.vertices[u][1]
 
-                new_equipped = state.equipped
-                for kind, _arg in act_list:
-                    if kind == "equip":
-                        new_equipped = True
-                    elif kind == "unequip":
-                        new_equipped = False
+            # --------------------
+            # SUCCESSORS = ONLY LEGAL PRIMITIVE ACTIONS
+            # --------------------
 
-                g_new = g + float(g_step)
+            # EQUIP
+            if (not equipped) and kits_here > 0:
+                ns = RTAStarState(u, state.remaining, True)
+                g_new = g + obs.Q
+                if g_new < g_score.get(ns, INF):
+                    g_score[ns] = g_new
+                    parent[ns] = state
+                    parent_action[ns] = ("equip", None)
+
+                    f_new = g_new + self._h(ns)
+                    heapq.heappush(OPEN, (f_new, g_new, self._counter, ns))
+                    self._counter += 1
+
+            # UNEQUIP
+            if equipped:
+                ns = RTAStarState(u, state.remaining, False)
+                g_new = g + obs.U
+                if g_new < g_score.get(ns, INF):
+                    g_score[ns] = g_new
+                    parent[ns] = state
+                    parent_action[ns] = ("unequip", None)
+
+                    f_new = g_new + self._h(ns)
+                    heapq.heappush(OPEN, (f_new, g_new, self._counter, ns))
+                    self._counter += 1
+
+            # TRAVERSE one edge
+            for v, edge in self.base_graph.neighbors(u):
+                step = self._move_cost(edge, equipped, obs)
+                if step == INF:
+                    continue  # illegal
 
                 new_remaining = set(state.remaining)
-                new_remaining.discard(n)
-                new_state = RTAStarState(n, frozenset(new_remaining), new_equipped)
+                new_remaining.discard(v)
 
-                if g_new < g_score.get(new_state, INF):
-                    g_score[new_state] = g_new
-                    parent[new_state] = state
-                    parent_move[new_state] = n
+                ns = RTAStarState(v, frozenset(new_remaining), equipped)
+                g_new = g + step
 
-                    h_new = heuristic(self.transformed_graph, [n] + list(new_remaining))
-                    f_new = g_new + float(h_new)
+                if g_new < g_score.get(ns, INF):
+                    g_score[ns] = g_new
+                    parent[ns] = state
+                    parent_action[ns] = ("traverse", v)
 
-                    counter += 1
-                    heapq.heappush(OPEN, (f_new, g_new, counter, new_state))
+                    f_new = g_new + self._h(ns)
+                    heapq.heappush(OPEN, (f_new, g_new, self._counter, ns))
+                    self._counter += 1
 
+        # If we didn't reach a goal within L expansions, pick best OPEN state and commit to its first action
         best = self._best_open_state(OPEN, g_score)
         if best is None:
             return "fail", []
-        return "partial", self._reconstruct_route(best, parent, parent_move)
 
-    def _build_full_action_plan(self, start: int, obs: Observation, route: List[int]) -> None:
-        self.action_array = []
-        self.action_index = 0
-
-        equipped = obs.self_state.equipped
-        prev = start
-        for v in route:
-            cost, actions = self.base_graph.shortest_exec_path(prev, v, obs.Q, obs.U, obs.P, equipped)
-            if cost == INF:
-                break
-            self.action_array.extend(actions)
-            for kind, _arg in actions:
-                if kind == "equip":
-                    equipped = True
-                elif kind == "unequip":
-                    equipped = False
-            prev = v
+        acts = self._reconstruct_actions(best, parent, parent_action)
+        return "partial", acts
 
     def _tuple_to_action(self, tup: Tuple[str, Optional[int]]) -> Action:
         kind, arg = tup
@@ -178,34 +194,11 @@ class RealTimeAStarAgent(Agent):
         return Action(ActionType.NO_OP)
 
     def decide(self, obs: Observation) -> Action:
-        # Already solved -> just execute (0 expansions per move)
-        if self._solved_plan:
-            if self.action_index >= len(self.action_array):
-                return Action(ActionType.NO_OP)
-            act = self._tuple_to_action(self.action_array[self.action_index])
-            self.action_index += 1
-            return act
-
         start = obs.self_state.current_vertex
-        status, route = self._limited_astar(start, obs)
+        status, acts = self._limited_astar(start, obs)
 
-        if status == "goal":
-            self._build_full_action_plan(start, obs, route)
-            self._solved_plan = True
-            if not self.action_array:
-                return Action(ActionType.NO_OP)
-            act = self._tuple_to_action(self.action_array[0])
-            self.action_index = 1
-            return act
-
-        if status == "partial" and route:
-            # commit only to the first low-level action
-            next_vertex = route[0]
-            cost, actions = self.base_graph.shortest_exec_path(
-                start, next_vertex, obs.Q, obs.U, obs.P, obs.self_state.equipped
-            )
-            if cost == INF or not actions:
-                return Action(ActionType.NO_OP)
-            return self._tuple_to_action(actions[0])
+        if status in ("goal", "partial") and acts:
+            # commit to FIRST primitive action only
+            return self._tuple_to_action(acts[0])
 
         return Action(ActionType.NO_OP)
