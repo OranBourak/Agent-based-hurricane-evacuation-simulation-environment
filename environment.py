@@ -49,8 +49,8 @@ class Environment:
                 self._auto_rescue(rec) # auto-rescue before next action (required by assignment to be done right before action)
                 obs = self._make_obs(rec)
                 act = rec.agent.decide(obs)
-                if visualize: self._display()
                 self._apply_action(rec, act)
+                if visualize: self._display()
                 self._auto_rescue(rec)
 
 
@@ -206,7 +206,7 @@ class Environment:
                 if key in seen: continue
                 seen.add(key)
                 edges.append((e.u,e.v,e.weight,e.flooded))
-        render(self.time,self.Q,self.U,self.P,verts,edges,[(a.state,a.agent.expansions) for a in self.agents],scores)
+        render(self.time,self.Q,self.U,self.P,verts,edges,[(a.state,0 if not hasattr(a.agent,"expansions") else a.agent.expansions) for a in self.agents],scores)
 
 # ---------------- Parser ----------------
 class Parser:

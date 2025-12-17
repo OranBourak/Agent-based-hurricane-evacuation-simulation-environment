@@ -10,9 +10,12 @@ def render(time:int,Q:int,U:int,P:int,
     print("\n" + "="*70)
     print(f"Time={time} | Q={Q} U={U} P={P}")
     by_v: Dict[int, List[str]] = {} # vertex_id -> list of agent labels
-    for a,_ in agents:
-    # Add "K" if equipped
-        display_label = a.label + ("K" if a.equipped else "")
+    for a, _ in agents:
+        if a.equipped:
+            display_label = f"{a.label}, K"
+        else:
+            display_label = a.label
+
         by_v.setdefault(a.current_vertex, []).append(display_label)
     print("\nVertices:")
     parts=[]
@@ -23,8 +26,9 @@ def render(time:int,Q:int,U:int,P:int,
         if kits > 0:
             tag += "K" if kits == 1 else f"K{kits}"
         tag += "]"
-        ag="".join(sorted(by_v.get(vid, [])))
-        if ag: tag+=f"<{ag}>"
+        agents_here = sorted(by_v.get(vid, []))
+        for a in agents_here:
+            tag += f"<{a}>"
         parts.append(tag)
     print("  ".join(parts))
     print("\nEdges (u--v : W, F?):")
