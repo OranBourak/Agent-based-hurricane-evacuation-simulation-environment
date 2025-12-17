@@ -41,8 +41,8 @@ class Observation:
     Q: int
     U: int
     P: int
-    vertices: Dict[int, Tuple[int, bool]]
-    edges: List[Tuple[int, int, int, bool]]
+    vertices: Dict[int, Tuple[int, int]] # vertex_id -> (people, has_kit)
+    edges: List[Tuple[int, int, int, bool]] # (u, v, weight, flooded)   
     agents: List[AgentState]
     self_state: AgentState
 

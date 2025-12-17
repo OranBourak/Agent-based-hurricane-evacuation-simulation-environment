@@ -4,7 +4,7 @@ import heapq
 
 from agent_base import Agent, Action, ActionType, Observation
 from environment import Environment
-from graph import Graph
+from graph import Edge
 from utils.heuristic_func import build_transformed_graph, heuristic
 
 INF = 10**15
@@ -19,173 +19,176 @@ class AStarState:
 
 
 class AStarAgent(Agent):
-    """A* search agent for evacuation planning."""
-
     def __init__(self, env: Environment, label="astar"):
         self.label = label
         self.base_graph = env.graph
         self.transformed_graph = build_transformed_graph(env.graph, env.P)
-        self.expansions = 0
 
+        self.expansions = 0
         self.action_array: List[Tuple[str, Optional[int]]] = []
         self.action_index = 0
         self.env = env
 
-    def plan_route(self, start: int, obs: Observation) -> List[int]:
-        """Plan route using A* search.
-        Returns list of vertices in order to visit.
-        """
-        # reset expansions for this planning episode
-        self.expansions = 0
+    # ------------------------------------------------------------
+    # A* SEARCH
+    # ------------------------------------------------------------
+    def plan_route(self, start: int, obs: Observation) -> List[AStarState]:
+        """Run standard A* and return a list of states (path)."""
 
-        # initial state
+        self.expansions = 0
+        self._counter = 0
+
+
         remaining = {
-            vid for vid, v in self.transformed_graph.vertices.items()
-            if v.people > 0 and vid != start
+            vid for vid, (ppl, _) in obs.vertices.items()
+            if ppl > 0 and vid != start
         }
+
         start_state = AStarState(start, frozenset(remaining), obs.self_state.equipped)
 
-        # OPEN = priority queue
-        OPEN: List[Tuple[float, float, int, AStarState]] = []
+        OPEN: List[Tuple[float, float, int, AStarState]] = []  # (f, g, counter, state)
         counter = 0
 
-        # G scores and parent pointers
         g_score: Dict[AStarState, float] = {start_state: 0.0}
         parent: Dict[AStarState, Optional[AStarState]] = {start_state: None}
-        parent_move: Dict[AStarState, Optional[int]] = {start_state: None}
+        parent_action: Dict[AStarState, Optional[Tuple[str, Optional[int]]]] = {
+            start_state: None
+        } # Initial action is None, Optional for actions: ("traverse", v), ("equip", None), ("unequip", None)
 
-        # heuristic for start
         h0 = heuristic(self.transformed_graph, [start] + list(remaining))
-        heapq.heappush(OPEN, (h0, 0.0, counter, start_state))
+        heapq.heappush(OPEN, (h0, 0.0, self._counter, start_state))
 
-        # CLOSED stores best known g for each expanded state
         CLOSED: Dict[AStarState, float] = {}
 
-
         while OPEN and self.expansions < LIMIT:
-
             f, g, _, state = heapq.heappop(OPEN)
-            self.expansions += 1  # count one expansion (we are expanding this state)
+            self.expansions += 1  # expansion
 
-            # Check goal
             if not state.remaining:
-                return self._reconstruct_route(state, parent, parent_move)
+                return self._reconstruct_states(state, parent)
 
-            # Graph-search duplicate detection (use g, not f)
             if state in CLOSED and CLOSED[state] <= g:
                 continue
             CLOSED[state] = g
 
-            # Expand neighbors
-            for (n, _) in self.transformed_graph.adj[state.current]:
+            u = state.current
+            equipped = state.equipped
+            kits_at_u = obs.vertices[u][1]
 
-                # Cost of moving to neighbor using real rules
-                g_step, act = self.base_graph.shortest_exec_path(
-                    state.current, n, obs.Q, obs.U, obs.P, state.equipped
-                )
-                if g_step == INF:
+            # --------------------
+            # EQUIP
+            # --------------------
+            if not equipped and kits_at_u > 0:
+                ns = AStarState(u, state.remaining, True)
+                g_new = g + obs.Q
+                self._push_state(state, ns, ("equip", None),
+                                 g_new, g_score, parent, parent_action,
+                                 obs, OPEN)
+
+            # --------------------
+            # UNEQUIP
+            # --------------------
+            if equipped:
+                ns = AStarState(u, state.remaining, False)
+                g_new = g + obs.U
+                self._push_state(state, ns, ("unequip", None),
+                                 g_new, g_score, parent, parent_action,
+                                 obs, OPEN)
+
+            # --------------------
+            # TRAVERSE
+            # --------------------
+            for v, edge in self.base_graph.neighbors(u):
+                move_cost = self._move_cost(edge, equipped, obs)
+                if move_cost == INF:
                     continue
 
-                # Compute the equipment AFTER the path
-                new_equipped = state.equipped
-                for kind, _ in act:
-                    if kind == "equip":
-                        new_equipped = True
-                    elif kind == "unequip":
-                        new_equipped = False
-
-                g_new = g + g_step
-
                 new_remaining = set(state.remaining)
-                if n in new_remaining:
-                    new_remaining.remove(n)
-                new_state = AStarState(n, frozenset(new_remaining), new_equipped)
+                new_remaining.discard(v)
 
-                # If we found a cheaper path to this state
-                if g_new < g_score.get(new_state, INF):
-                    g_score[new_state] = g_new
-                    parent[new_state] = state
-                    parent_move[new_state] = n
+                ns = AStarState(v, frozenset(new_remaining), equipped)
+                g_new = g + move_cost
 
-                    # Heuristic
-                    h_new = heuristic(
-                        self.transformed_graph,
-                        [n] + list(new_remaining)
-                    )
-                    f_new = g_new + h_new
+                self._push_state(state, ns, ("traverse", v),
+                                 g_new, g_score, parent, parent_action,
+                                 obs, OPEN)
 
-                    counter += 1
-                    heapq.heappush(OPEN, (f_new, g_new, counter, new_state))
+        return []
 
-        # If we reached limit -> fail softly: return [start] (no movement)
-        return [start]
+    # ------------------------------------------------------------
+    # HELPERS
+    # ------------------------------------------------------------
+    def _move_cost(self, edge: Edge, equipped: bool, obs: Observation) -> float:
+        if edge.flooded and not equipped:
+            return INF
+        if equipped:
+            return edge.weight * obs.P
+        return edge.weight
 
-    def _reconstruct_route(
+    def _push_state(
         self,
         state: AStarState,
-        parent: Dict[AStarState, Optional[AStarState]],
-        parent_move: Dict[AStarState, Optional[int]]
-    ) -> List[int]:
-        """Reconstruct route from parent pointers."""
+        next_state: AStarState,
+        action: Tuple[str, Optional[int]],
+        g_new: float,
+        g_score,
+        parent,
+        parent_action,
+        obs,
+        OPEN,
+    ):
+        if g_new >= g_score.get(next_state, INF):
+            return
 
-        route: List[int] = []
-        cur: Optional[AStarState] = state
+        g_score[next_state] = g_new
+        parent[next_state] = state
+        parent_action[next_state] = action
 
+        h = heuristic(self.transformed_graph,
+                      [next_state.current] + list(next_state.remaining))
+        f = g_new + h
+        self._counter += 1 #needed to avoid comparison of AStarState in heapq when 2 states have same f  score
+        heapq.heappush(OPEN, (f, g_new, self._counter, next_state))
+
+    def _reconstruct_states(
+        self,
+        goal: AStarState,
+        parent: Dict[AStarState, Optional[AStarState]]
+    ) -> List[AStarState]:
+        path = []
+        cur = goal
         while cur is not None:
-            mv = parent_move[cur]
-            if mv is not None:
-                route.append(mv)
+            path.append(cur)
             cur = parent[cur]
+        path.reverse()
+        return path
 
-        route.reverse()
-        return route
-
+    # ------------------------------------------------------------
+    # ACTION GENERATION
+    # ------------------------------------------------------------
     def _build_actions(self, obs: Observation):
-        """Build the full low-level action list required to execute the A* route."""
-
         self.action_array = []
         self.action_index = 0
 
-        start = obs.self_state.current_vertex
-        equipped = obs.self_state.equipped
-
-        # Ask A* to compute the HIGH-LEVEL route (list of vertices)
-        route = self.plan_route(start, obs)
-
-        # If route is empty
-        if not route:
-            return
-        if len(route) == 1 and route[0] == start:
+        path = self.plan_route(obs.self_state.current_vertex, obs)
+        if not path:
             return
 
-        # Route returned by A* does NOT include the starting vertex.
-        # We must chain shortest_exec_path(start -> route[0]) and so on.
-        prev = start
+        for i in range(1, len(path)):
+            prev = path[i - 1]
+            cur = path[i]
 
-        for v in route:
-            # Compute optimal actions from prev -> v
-            cost, actions = self.base_graph.shortest_exec_path(
-                prev,
-                v,
-                obs.Q,
-                obs.U,
-                obs.P,
-                equipped  # current equipment status
-            )
+            if prev.current == cur.current:
+                if not prev.equipped and cur.equipped:
+                    self.action_array.append(("equip", None))
+                elif prev.equipped and not cur.equipped:
+                    self.action_array.append(("unequip", None))
+            else:
+                self.action_array.append(("traverse", cur.current))
 
-            # Append actions to master action list
-            self.action_array.extend(actions)
-
-            # Update equipment state based on the actions we just appended
-            for kind, _ in actions:
-                if kind == "equip":
-                    equipped = True
-                elif kind == "unequip":
-                    equipped = False
-
-            # Move to next vertex in the route
-            prev = v
-
+    # ------------------------------------------------------------
+    # DECISION
+    # ------------------------------------------------------------
     def decide(self, obs: Observation) -> Action:
         if self.action_index == 0:
             self._build_actions(obs)

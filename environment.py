@@ -37,6 +37,7 @@ class Environment:
 
         for _ in range(max_steps):
             if self._all_rescued() or not self._any_agent_can_reach_people(): # termination conditions
+                if visualize: self._display()
                 print("\n Simulation completed successfully. All people have been rescued or are unreachable.\n")
                 break
             # ----  agent turns loop ----
@@ -48,9 +49,10 @@ class Environment:
                 self._auto_rescue(rec) # auto-rescue before next action (required by assignment to be done right before action)
                 obs = self._make_obs(rec)
                 act = rec.agent.decide(obs)
+                if visualize: self._display()
                 self._apply_action(rec, act)
                 self._auto_rescue(rec)
-                if visualize: self._display()
+
 
     # ---- helpers ----
     def _auto_rescue(self, rec: EnvAgentRecord) -> None:
@@ -194,7 +196,7 @@ class Environment:
             if agent.agent.label in ["stupid greedy", "thief", "human"]:
                 scores[agent.state.agent_id] = agent.state.rescued * 1000 - self.time
             else:
-                scores[agent.state.agent_id] = self.time + agent.agent.expansions * self.T
+                scores[agent.state.agent_id] =  agent.state.rescued * 1000 - (self.time + agent.agent.expansions * self.T)
         verts = {vid:(v.people,v.kits) for vid,v in self.graph.vertices.items()}
         edges=[]
         seen=set()
