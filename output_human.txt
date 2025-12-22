@@ -1,0 +1,161 @@
+
+################################################################################
+==== RUN START ====
+timestamp: 2025-12-22 18:23:06
+run_id:    f0845aa8
+################################################################################
+
+Simulation summary @ 2025-12-22 18:23:06
+Constants: Q=2 (equip), U=1 (unequip), P=3 (penalty), T=0.0 (per-expansion)
+
+Graph: |V|=4
+Vertices (people/kits):
+  V1: people=0, kits=1
+  V2: people=1, kits=0
+  V3: people=0, kits=0
+  V4: people=2, kits=1
+
+Edges: |E|=5
+  1--2 : W1, FLOODED
+  1--3 : W4, OK
+  2--3 : W1, OK
+  2--4 : W5, OK
+  3--4 : W1, OK
+
+Agents:
+  human#0: start=V1, equipped=False, can_rescue=True, expansions=0
+
+
+======================================================================
+Time=0 | Q=2 U=1 P=3
+
+Vertices:
+[1K]<human>  [2P1]  [3]  [4P2K]
+
+Edges (u--v : W, F?):
+  1--2 : W1, F
+  1--3 : W4, OK
+  2--3 : W1, OK
+  2--4 : W5, OK
+  3--4 : W1, OK
+
+Scores:
+  human#0: 0  (rescued=0, actions=0, expansions=0)
+======================================================================
+t=0 | human#0 action: EQUIP
+
+======================================================================
+Time=2 | Q=2 U=1 P=3
+
+Vertices:
+[1]<human, K>  [2P1]  [3]  [4P2K]
+
+Edges (u--v : W, F?):
+  1--2 : W1, F
+  1--3 : W4, OK
+  2--3 : W1, OK
+  2--4 : W5, OK
+  3--4 : W1, OK
+
+Scores:
+  human#0: -2  (rescued=0, actions=1, expansions=0)
+======================================================================
+t=2 | human#0 action: TRAVERSE -> V2
+
+======================================================================
+Time=5 | Q=2 U=1 P=3
+
+Vertices:
+[1]  [2P1]<human, K>  [3]  [4P2K]
+
+Edges (u--v : W, F?):
+  1--2 : W1, F
+  1--3 : W4, OK
+  2--3 : W1, OK
+  2--4 : W5, OK
+  3--4 : W1, OK
+
+Scores:
+  human#0: -5  (rescued=0, actions=2, expansions=0)
+======================================================================
+t=5 | human#0 action: UNEQUIP
+
+======================================================================
+Time=6 | Q=2 U=1 P=3
+
+Vertices:
+[1]  [2K]<human>  [3]  [4P2K]
+
+Edges (u--v : W, F?):
+  1--2 : W1, F
+  1--3 : W4, OK
+  2--3 : W1, OK
+  2--4 : W5, OK
+  3--4 : W1, OK
+
+Scores:
+  human#0: 994  (rescued=1, actions=3, expansions=0)
+======================================================================
+t=6 | human#0 action: TRAVERSE -> V3
+
+======================================================================
+Time=7 | Q=2 U=1 P=3
+
+Vertices:
+[1]  [2K]  [3]<human>  [4P2K]
+
+Edges (u--v : W, F?):
+  1--2 : W1, F
+  1--3 : W4, OK
+  2--3 : W1, OK
+  2--4 : W5, OK
+  3--4 : W1, OK
+
+Scores:
+  human#0: 993  (rescued=1, actions=4, expansions=0)
+======================================================================
+t=7 | human#0 action: TRAVERSE -> V4
+
+======================================================================
+Time=8 | Q=2 U=1 P=3
+
+Vertices:
+[1]  [2K]  [3]  [4P2K]<human>
+
+Edges (u--v : W, F?):
+  1--2 : W1, F
+  1--3 : W4, OK
+  2--3 : W1, OK
+  2--4 : W5, OK
+  3--4 : W1, OK
+
+Scores:
+  human#0: 992  (rescued=1, actions=5, expansions=0)
+======================================================================
+
+======================================================================
+Time=8 | Q=2 U=1 P=3
+
+Vertices:
+[1]  [2K]  [3]  [4K]<human>
+
+Edges (u--v : W, F?):
+  1--2 : W1, F
+  1--3 : W4, OK
+  2--3 : W1, OK
+  2--4 : W5, OK
+  3--4 : W1, OK
+
+Scores:
+  human#0: 2992  (rescued=3, actions=5, expansions=0)
+======================================================================
+
+ Simulation completed successfully. All people have been rescued or are unreachable.
+
+################################################################################
+==== RUN END ====
+timestamp: 2025-12-22 18:24:17
+run_id:    f0845aa8
+status:    finished
+################################################################################
+

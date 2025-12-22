@@ -1,4 +1,9 @@
 import argparse
+import os
+from datetime import datetime
+import uuid
+from typing import Optional, TextIO
+
 from environment import Environment, Parser
 from agents.human_agent import HumanAgent
 from agents.stupid_greedy_agent import StupidGreedyAgent
@@ -27,12 +32,12 @@ def build_demo_file(path:str)->None:
         f.write(demo)
 
 def interactive_add_agents(env:Environment):
-    ''' Interactively add agents to the environment. 
+    ''' Interactively add agents to the environment.
     Args:
         env: the Environment instance to add agents to '''
     try:
         n=int(input("\nHow many agents? [default 3]: ") or "3")
-    except: 
+    except:
         print("\n\033[91mInvalid input. Using default value of 3.\033[0m\n")
         n=3
     for i in range(n):
@@ -48,7 +53,6 @@ def interactive_add_agents(env:Environment):
         elif t=="thief": env.add_agent(ThiefAgent(),v)
         elif t=="greedy": env.add_agent(GreedyAgent(env), v)
         elif t=="astar": env.add_agent(AStarAgent(env), v)
-        # real time a* requires an additional parameter
         elif t in ("rt astar"):
             try:
                 L = int(input("Enter L (expansions per decision) [default 10]: ") or "10")
@@ -58,6 +62,45 @@ def interactive_add_agents(env:Environment):
             env.add_agent(RealTimeAStarAgent(env, L=L), v)
         else: env.add_agent(HumanAgent(),v)
 
+def _open_log_file_interactive() -> Optional[TextIO]:
+    path = (input("\nOutput log file (leave blank for terminal only): ") or "").strip()
+    if not path:
+        return None
+    try:
+        d = os.path.dirname(path)
+        if d:
+            os.makedirs(d, exist_ok=True)
+        fp = open(path, "a", encoding="utf-8")  # append + create-if-missing
+        print(f"Logging to '{path}' (append mode).")
+        return fp
+    except Exception as e:
+        print(f"\n\033[91mCould not open log file '{path}': {e}. Continuing without file.\033[0m\n")
+        return None
+
+def _write_run_header(fp: TextIO, env: Environment) -> str:
+    ts = datetime.now().isoformat(sep=" ", timespec="seconds")
+    run_id = uuid.uuid4().hex[:8]
+
+    fp.write("\n" + "#" * 80 + "\n")
+    fp.write("==== RUN START ====\n")
+    fp.write(f"timestamp: {ts}\n")
+    fp.write(f"run_id:    {run_id}\n")
+    fp.write("#" * 80 + "\n\n")
+
+    fp.write(env.describe() + "\n\n")
+    fp.flush()
+    return run_id
+
+def _write_run_footer(fp: TextIO, run_id: str, status: str) -> None:
+    ts = datetime.now().isoformat(sep=" ", timespec="seconds")
+    fp.write("\n" + "#" * 80 + "\n")
+    fp.write("==== RUN END ====\n")
+    fp.write(f"timestamp: {ts}\n")
+    fp.write(f"run_id:    {run_id}\n")
+    fp.write(f"status:    {status}\n")
+    fp.write("#" * 80 + "\n\n")
+    fp.flush()
+
 def main():
     ap=argparse.ArgumentParser(description="Hurricane Evacuation Simulator")
     ap.add_argument("--file",type=str,default="demo_input.txt")
@@ -65,20 +108,17 @@ def main():
     ap.add_argument("--no-interactive",action="store_true")
     args=ap.parse_args()
 
-    if args.demo: # create demo file if flagged
+    if args.demo:
         build_demo_file(args.file)
         print(f"Wrote demo to {args.file}")
 
-    # --- Parse constants from file ---
     graph, Q, U, P = Parser.parse(args.file)
 
-    # --- Ask the user if they want to override the constants ---
     print("\nGlobal constants from file:")
     print(f"Q={Q} (equip time), U={U} (unequip time), P={P} (speed penalty)\n")
 
-    # Get T value from user
     t = float(input("Enter T (time per expansion) [default 0]: ") or "0")
-    
+
     try:
         use_custom = input("Would you like to change these values? [y/n]: ").strip().lower()
         if use_custom == "y":
@@ -90,7 +130,6 @@ def main():
     except Exception:
         print("\033[91mInvalid input, using defaults from file.\033[0m")
 
-    # --- Create the environment using either updated or default constants ---
     env = Environment(graph, Q=Q, U=U, P=P, T=t)
 
     if args.no_interactive:
@@ -100,8 +139,29 @@ def main():
     else:
         interactive_add_agents(env)
 
-    print("Starting simulation...")
-    env.run(max_steps=200,visualize=True)
+    log_fp = _open_log_file_interactive()
+    run_id = "unknown"
+    status = "finished"
+
+    try:
+        if log_fp is not None:
+            run_id = _write_run_header(log_fp, env)
+
+        print("Starting simulation...")
+        env.run(max_steps=200, visualize=True, log_file=log_fp)
+
+        if getattr(env, "simulation_done", False):
+            status = "terminated"
+        else:
+            status = "finished"
+
+    except Exception:
+        status = "crashed"
+        raise
+    finally:
+        if log_fp is not None:
+            _write_run_footer(log_fp, run_id, status)
+            log_fp.close()
 
 if __name__=="__main__":
     main()
