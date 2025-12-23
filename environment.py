@@ -128,10 +128,10 @@ class Environment:
                 break
 
             # ---- agent turns loop ----
-            for rec in self.agents:
+            for rec in self.agents: #for each agent's turn
                 if self.simulation_done:
                     return
-
+                # check termination conditions
                 if self._all_rescued() or not self._any_agent_can_reach_people():
                     if visualize:
                         snap = self._display()

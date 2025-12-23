@@ -72,15 +72,15 @@ def heuristic(g: Graph, vertices: List[int]) -> int:
     total_cost = 0 # sum of edge weights in the tree
 
     for _ in range(n):
-        u = -1
-        best = INF
+        u = -1 #indicates no vertex selected yet
+        best = INF # initialize best cost
 
-        # pick best vertex to add
-        for i in range(n):
+        # pick best vertex to add based on the minimum edge cost
+        for i in range(n): 
             if not in_mst[i] and min_edge[i] < best:
                 best = min_edge[i]
                 u = i
-
+        # if no vertex can be added, the graph is disconnected so we return INF
         if u == -1 or best == INF:
             return INF   # not all nodes are reachable
 
